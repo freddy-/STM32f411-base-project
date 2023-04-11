@@ -36,9 +36,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
+#include "user_diskio.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define SD_TIMEOUT 30 * 1000
+#define SD_DEFAULT_BLOCK_SIZE 512
 
 /* Private variables ---------------------------------------------------------*/
 /* Disk status */
@@ -82,7 +85,13 @@ DSTATUS USER_initialize (
 )
 {
   /* USER CODE BEGIN INIT */
-	return SD_disk_initialize(pdrv);
+  Stat = STA_NOINIT;
+
+  if(BSP_SD_Init() == MSD_OK)
+  {
+    Stat = SD_CheckStatus(pdrv);
+  }
+  return Stat;
   /* USER CODE END INIT */
 }
 
@@ -96,7 +105,7 @@ DSTATUS USER_status (
 )
 {
   /* USER CODE BEGIN STATUS */
-	return SD_disk_status(pdrv);
+  return SD_CheckStatus(pdrv);
   /* USER CODE END STATUS */
 }
 
@@ -116,7 +125,20 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
-	return SD_disk_read(pdrv, buff, sector, count);
+  DRESULT res = RES_ERROR;
+
+  if(BSP_SD_ReadBlocks((uint32_t*)buff,
+                       (uint32_t) (sector),
+                       count, SD_TIMEOUT) == MSD_OK)
+  {
+    /* wait until the read operation is finished */
+    while(BSP_SD_GetCardState()!= MSD_OK)
+    {
+    }
+    res = RES_OK;
+  }
+
+  return res;
   /* USER CODE END READ */
 }
 
@@ -137,7 +159,20 @@ DRESULT USER_write (
 )
 {
   /* USER CODE BEGIN WRITE */
-	return SD_disk_write(pdrv, buff, sector, count);
+  DRESULT res = RES_ERROR;
+
+  if(BSP_SD_WriteBlocks((uint32_t*)buff,
+                        (uint32_t)(sector),
+                        count, SD_TIMEOUT) == MSD_OK)
+  {
+  /* wait until the Write operation is finished */
+    while(BSP_SD_GetCardState() != MSD_OK)
+    {
+    }
+    res = RES_OK;
+  }
+
+  return res;
   /* USER CODE END WRITE */
 }
 #endif /* _USE_WRITE == 1 */
@@ -157,7 +192,44 @@ DRESULT USER_ioctl (
 )
 {
   /* USER CODE BEGIN IOCTL */
-	return SD_disk_ioctl(pdrv, cmd, buff);
+  DRESULT res = RES_ERROR;
+  BSP_SD_CardInfo CardInfo;
+
+  if (Stat & STA_NOINIT) return RES_NOTRDY;
+
+  switch (cmd)
+  {
+  /* Make sure that no pending write process */
+  case CTRL_SYNC :
+    res = RES_OK;
+    break;
+
+  /* Get number of sectors on the disk (DWORD) */
+  case GET_SECTOR_COUNT :
+    BSP_SD_GetCardInfo(&CardInfo);
+    *(DWORD*)buff = CardInfo.LogBlockNbr;
+    res = RES_OK;
+    break;
+
+  /* Get R/W sector size (WORD) */
+  case GET_SECTOR_SIZE :
+    BSP_SD_GetCardInfo(&CardInfo);
+    *(WORD*)buff = CardInfo.LogBlockSize;
+    res = RES_OK;
+    break;
+
+  /* Get erase block size in unit of sector (DWORD) */
+  case GET_BLOCK_SIZE :
+    BSP_SD_GetCardInfo(&CardInfo);
+    *(DWORD*)buff = CardInfo.LogBlockSize / SD_DEFAULT_BLOCK_SIZE;
+  res = RES_OK;
+    break;
+
+  default:
+    res = RES_PARERR;
+  }
+
+  return res;
   /* USER CODE END IOCTL */
 }
 #endif /* _USE_IOCTL == 1 */
