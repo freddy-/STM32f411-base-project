@@ -19,12 +19,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "rtc.h"
+#include "dma.h"
+#include "fatfs.h"
+#include "spi.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "st7789.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,7 +46,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+SPI_HandleTypeDef hspi1;
+SPI_HandleTypeDef hspi3;
+DMA_HandleTypeDef hdma_spi1_tx;
 
+FATFS fs;
+FIL fil;
+char buffer[100];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,100 +67,127 @@ void SystemClock_Config(void);
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
-int main(void) {
-	/* USER CODE BEGIN 1 */
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
 	SCB->VTOR = FLASH_BASE | 0x4000; // 添加至工程开头时钟初始化之后
-	/* USER CODE END 1 */
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // Enable DWT
+	DWT->CYCCNT = 0;                                // Clear counter
+	DWT->CTRL = DWT_CTRL_CYCCNTENA_Msk;             // Enable counter
+  /* USER CODE END 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_RTC_Init();
-	/* USER CODE BEGIN 2 */
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_SPI1_Init();
+  MX_SPI3_Init();
+  MX_FATFS_Init();
+  /* USER CODE BEGIN 2 */
+	ST7789_Init();
+	HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_SET);
 
-	/* USER CODE END 2 */
+	ST7789_Fill_Color(BLACK);
+	ST7789_WriteString(10, 0, "DISPLAY OK", Font_11x18, GREEN, BLACK);
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
-	while (1) {
-		/* USER CODE END WHILE */
-
-		/* USER CODE BEGIN 3 */
-		HAL_GPIO_WritePin(C13_GPIO_Port, C13_Pin, GPIO_PIN_SET);
-		HAL_Delay(100);
-		HAL_GPIO_WritePin(C13_GPIO_Port, C13_Pin, GPIO_PIN_RESET);
-		HAL_Delay(250);
-
-		// Enter the HID Bootloader
-		if (HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET)
-			NVIC_SystemReset();
-		__WFI();
+	FRESULT res = f_mount(&fs, "", 1);
+	char buff[20];
+	if (res != FR_OK) {
+		sprintf(buff, "ERROR MOUNTING: %d", (int) res);
+		ST7789_WriteString(10, 20, buff, Font_11x18, GREEN, BLACK);
+	} else {
+		ST7789_WriteString(10, 20, "MOUNT OK", Font_11x18, GREEN, BLACK);
 	}
-	/* USER CODE END 3 */
+
+	res = f_open(&fil, "file1.txt", FA_READ);
+	if (res != FR_OK) {
+		sprintf(buff, "ERROR OPENING: %d", (int) res);
+		ST7789_WriteString(10, 40, buff, Font_11x18, GREEN, BLACK);
+	} else {
+		ST7789_WriteString(10, 40, "FILE OPENED", Font_11x18, GREEN, BLACK);
+	}
+
+	while (f_gets(buffer, sizeof(buffer), &fil)) {
+		ST7789_WriteString(10, 60, buffer, Font_11x18, WHITE, BLACK);
+	}
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+	while (1) {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+		// printar um ok na tela, usar o display como debug do cartão sd!
+		// Enter the HID Bootloader
+		if (HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET) {
+			NVIC_SystemReset();
+		}
+	}
+  /* USER CODE END 3 */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
-void SystemClock_Config(void) {
-	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
-	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = { 0 };
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-	/** Configure the main internal regulator output voltage
-	 */
-	__HAL_RCC_PWR_CLK_ENABLE();
-	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-	/** Initializes the RCC Oscillators according to the specified parameters
-	 * in the RCC_OscInitTypeDef structure.
-	 */
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE;
-	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-	RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	RCC_OscInitStruct.PLL.PLLM = 12;
-	RCC_OscInitStruct.PLL.PLLN = 96;
-	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-	RCC_OscInitStruct.PLL.PLLQ = 4;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-		Error_Handler();
-	}
-	/** Initializes the CPU, AHB and APB buses clocks
-	 */
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  /** Configure the main internal regulator output voltage
+  */
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 12;
+  RCC_OscInitStruct.PLL.PLLN = 96;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK) {
-		Error_Handler();
-	}
-	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-	PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
-		Error_Handler();
-	}
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
@@ -160,14 +195,15 @@ void SystemClock_Config(void) {
 /* USER CODE END 4 */
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
-void Error_Handler(void) {
-	/* USER CODE BEGIN Error_Handler_Debug */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 
-	/* USER CODE END Error_Handler_Debug */
+  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
