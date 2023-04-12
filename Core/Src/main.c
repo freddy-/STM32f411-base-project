@@ -117,17 +117,26 @@ int main(void)
 		ST7789_WriteString(10, 20, "MOUNT OK", Font_11x18, GREEN, BLACK);
 	}
 
-	res = f_open(&fil, "file1.txt", FA_READ);
+
+	// list dir
+	DIR dp;
+	FILINFO fno;
+	res = f_opendir(&dp, "/");
 	if (res != FR_OK) {
-		sprintf(buff, "ERROR OPENING: %d", (int) res);
-		ST7789_WriteString(10, 40, buff, Font_11x18, GREEN, BLACK);
+    sprintf(buff, "ERROR OPEN DIR: %d", (int) res);
+    ST7789_WriteString(10, 40, buff, Font_11x18, GREEN, BLACK);
 	} else {
-		ST7789_WriteString(10, 40, "FILE OPENED", Font_11x18, GREEN, BLACK);
+    ST7789_WriteString(10, 40, "/", Font_11x18, WHITE, BLACK);
+	  for (uint8_t counter = 60;; counter += 20) {
+	    res = f_readdir(&dp, &fno);                   /* Read a directory item */
+	    if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+	    sprintf(buff, "> %s", (int) fno.fname);
+	    ST7789_WriteString(10, counter, buff, Font_7x10, WHITE, BLACK);
+	  }
+	  f_closedir(&dp);
 	}
 
-	while (f_gets(buffer, sizeof(buffer), &fil)) {
-		ST7789_WriteString(10, 60, buffer, Font_11x18, WHITE, BLACK);
-	}
+
 
   /* USER CODE END 2 */
 

@@ -717,6 +717,6 @@ void ST7789_Test(void) {
 
 	//	If FLASH cannot storage anymore datas, please delete codes below.
 	ST7789_Fill_Color(WHITE);
-	ST7789_DrawImage(0, 0, 128, 128, (uint16_t*) saber);
+	//ST7789_DrawImage(0, 0, 128, 128, (uint16_t*) saber);
 	HAL_Delay(3000);
 }
