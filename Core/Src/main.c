@@ -26,6 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "st7789.h"
 #include "tjpgd.h"
 /* USER CODE END Includes */
@@ -113,28 +114,6 @@ int out_func (      /* Returns 1 to continue, 0 to abort */
     JRECT* rect     /* Rectangle region of output image */
 )
 {
-    IODEV *dev = (IODEV*)jd->device;   /* Session identifier (5th argument of jd_prepare function) */
-    //uint8_t *src, *dst;
-    //uint16_t y, bws;
-    //unsigned int bwd;
-
-
-    /* Progress indicator */
-    if (rect->left == 0) {
-        //printf("\r%lu%%", (rect->top << jd->scale) * 100UL / jd->height);
-    }
-
-    /* Copy the output image rectangle to the frame buffer */
-    /* this is is memory intensive! */
-    //src = (uint8_t*)bitmap;                           /* Output bitmap */
-    //dst = dev->fbuf + N_BPP * (rect->top * dev->wfbuf + rect->left);  /* Left-top of rectangle in the frame buffer */
-    //bws = N_BPP * (rect->right - rect->left + 1);     /* Width of the rectangle [byte] */
-    //bwd = N_BPP * dev->wfbuf;                         /* Width of the frame buffer [byte] */
-    //for (y = rect->top; y <= rect->bottom; y++) {
-    //    memcpy(dst, src, bws);   /* Copy a line */
-    //    src += bws; dst += bwd;  /* Next line */
-    //}
-
     // the image start position in the screen
     uint8_t xPos = 0;
     uint8_t yPos = 0;
@@ -200,7 +179,6 @@ int main(void)
 		//ST7789_WriteString(10, 20, "MOUNT OK", Font_11x18, GREEN, BLACK);
 	}
 
-  DIR dp;
 	// list dir
 	/*
 	DIR dp;
@@ -221,16 +199,12 @@ int main(void)
 	}
 	*/
 
-  //RGB
-  //BRG
-
-  // test jpeg decompressor
   JRESULT jRes;      /* Result code of TJpgDec API */
   JDEC jdec;        /* Decompression object */
   void *work;       /* Pointer to the work area */
   size_t sz_work = 3500; /* Size of work area */
   IODEV devid;      /* Session identifier */
-  unsigned int bytesRead;
+
   devid.fp = &fil;
   devid.bytesRead = 0;
 
@@ -238,44 +212,26 @@ int main(void)
   if (res != FR_OK) {
     sprintf(buff, "open file nok: %d", (int) res);
     ST7789_WriteString(10, 0, buff, Font_11x18, GREEN, BLACK);
-    return;
+    return 0;
   }
-  /*res = f_read(devid.fp, buffer, sizeof(buffer), &bytesRead);
-  if (res != FR_OK) {
-    sprintf(buff, "read file nok: %d", (int) res);
-    ST7789_WriteString(10, 0, buff, Font_11x18, GREEN, BLACK);
-  }*/
 
   work = (void*)malloc(sz_work);
   jRes = jd_prepare(&jdec, in_func, work, sz_work, &devid);
   if (jRes == JDR_OK) {
-      /* It is ready to dcompress and image info is available here */
-      //printf("Image size is %u x %u.\n%u bytes of work ares is used.\n", jdec.width, jdec.height, sz_work - jdec.sz_pool);
-
+      /* It is ready to decompress and image info is available here */
       sprintf(buff, "size %u x %u", jdec.width, jdec.height);
       ST7789_WriteString(0, 0, buff, Font_11x18, GREEN, BLACK);
 
-      /* Initialize output device (Create a frame buffer) */
-      //devid.fbuf = (uint8_t*)malloc(N_BPP * jdec.width * jdec.height);
-      //devid.wfbuf = jdec.width;
-
       jRes = jd_decomp(&jdec, out_func, 0);   /* Start to decompress with 1/1 scaling */
       if (jRes == JDR_OK) {
-          /* Decompression succeeded. You have the decompressed image in the frame buffer here. */
+          /* Decompression succeeded */
           ST7789_WriteString(10, 20, "Decompressed!", Font_11x18, GREEN, BLACK);
-
-          //ST7789_DrawImage(0, 0, jdec.width, jdec.height, devid.fbuf);
-
       } else {
-          //printf("jd_decomp() failed (rc=%d)\n", res);
           sprintf(buff, "Decompression failed %d", jRes);
           ST7789_WriteString(10, 40, buff, Font_11x18, GREEN, BLACK);
       }
 
-      //free(devid.fbuf);    /* Discard frame buffer */
-
   } else {
-      //printf("jd_prepare() failed (rc=%d)\n", res);
       sprintf(buff, "jd_prepare %d", jRes);
       ST7789_WriteString(10, 40, buff, Font_11x18, RED, BLACK);
   }
