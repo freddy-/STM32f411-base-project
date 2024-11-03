@@ -17,7 +17,7 @@ uint16_t disp_buf[ST7789_WIDTH * HOR_LEN];
  * @param cmd -> command to write
  * @return none
  */
-static void ST7789_WriteCommand(uint8_t cmd) {
+void ST7789_WriteCommand(uint8_t cmd) {
 	ST7789_Select();
 	ST7789_DC_Clr();
 	HAL_SPI_Transmit(&ST7789_SPI_PORT, &cmd, sizeof(cmd), HAL_MAX_DELAY);

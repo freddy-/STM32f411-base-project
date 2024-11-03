@@ -179,25 +179,32 @@ int main(void)
 		//ST7789_WriteString(10, 20, "MOUNT OK", Font_11x18, GREEN, BLACK);
 	}
 
-	// list dir
-	/*
+	// list images dir
+	// save the image name in a list
+	// display the images in sequence
+	uint8_t fileNameMaxSize = 20;
+	uint8_t totalFiles = 0;
 	DIR dp;
 	FILINFO fno;
-	res = f_opendir(&dp, "/");
+	res = f_opendir(&dp, "/images");
 	if (res != FR_OK) {
     sprintf(buff, "ERROR OPEN DIR: %d", (int) res);
     ST7789_WriteString(10, 40, buff, Font_11x18, GREEN, BLACK);
 	} else {
-    ST7789_WriteString(10, 40, "/", Font_11x18, WHITE, BLACK);
-	  for (uint8_t counter = 60;; counter += 20) {
-	    res = f_readdir(&dp, &fno);                   // Read a directory item
+	  for (;; totalFiles++) {
+	    res = f_readdir(&dp, &fno);                    // Read a directory item
 	    if (res != FR_OK || fno.fname[0] == 0) break;  // Break on error or end of dir
-	    sprintf(buff, "> %s", (int) fno.fname);
-	    ST7789_WriteString(10, counter, buff, Font_7x10, WHITE, BLACK);
+	    // salvar os nomes dos arquivos em um buffer
+	    sprintf((char*)buffer + (totalFiles * fileNameMaxSize), "/images/%s", fno.fname);
+	    //ST7789_WriteString(10, counter, buff, Font_7x10, WHITE, BLACK);
 	  }
 	  f_closedir(&dp);
 	}
-	*/
+
+	//for (uint8_t c = 0; c < totalFiles; c++) {
+	//  ST7789_WriteString(10, (c * 20) + 20,(char*)buffer + (c * fileNameMaxSize), Font_7x10, WHITE, BLACK);
+	//}
+
 
   JRESULT jRes;      /* Result code of TJpgDec API */
   JDEC jdec;        /* Decompression object */
@@ -206,42 +213,8 @@ int main(void)
   IODEV devid;      /* Session identifier */
 
   devid.fp = &fil;
-  devid.bytesRead = 0;
-
-  res = f_open(devid.fp, "img6.jpg", FA_READ);
-  if (res != FR_OK) {
-    sprintf(buff, "open file nok: %d", (int) res);
-    ST7789_WriteString(10, 0, buff, Font_11x18, GREEN, BLACK);
-    return 0;
-  }
-
   work = (void*)malloc(sz_work);
-  jRes = jd_prepare(&jdec, in_func, work, sz_work, &devid);
-  if (jRes == JDR_OK) {
-      /* It is ready to decompress and image info is available here */
-      sprintf(buff, "size %u x %u", jdec.width, jdec.height);
-      ST7789_WriteString(0, 0, buff, Font_11x18, GREEN, BLACK);
-
-      jRes = jd_decomp(&jdec, out_func, 0);   /* Start to decompress with 1/1 scaling */
-      if (jRes == JDR_OK) {
-          /* Decompression succeeded */
-          ST7789_WriteString(10, 20, "Decompressed!", Font_11x18, GREEN, BLACK);
-      } else {
-          sprintf(buff, "Decompression failed %d", jRes);
-          ST7789_WriteString(10, 40, buff, Font_11x18, GREEN, BLACK);
-      }
-
-  } else {
-      sprintf(buff, "jd_prepare %d", jRes);
-      ST7789_WriteString(10, 40, buff, Font_11x18, RED, BLACK);
-  }
-
-  free(work);             /* Discard work area */
-  f_close(devid.fp);       /* Close the JPEG file */
   // test jpeg decompressor end
-
-
-
 
   /* USER CODE END 2 */
 
@@ -251,6 +224,41 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    for (uint8_t fileCounter = 0; fileCounter < totalFiles; fileCounter++) {
+      char *fileName = (char*)buffer + (fileCounter * fileNameMaxSize);
+      res = f_open(devid.fp, fileName, FA_READ);
+      if (res != FR_OK) {
+        sprintf(buff, "open file nok: %d", (int) res);
+        ST7789_WriteString(10, 0, buff, Font_11x18, GREEN, BLACK);
+        return 0;
+      }
+
+      devid.bytesRead = 0;
+      jRes = jd_prepare(&jdec, in_func, work, sz_work, &devid);
+      if (jRes == JDR_OK) {
+        /* It is ready to decompress and image info is available here */
+        //sprintf(buff, "size %u x %u", jdec.width, jdec.height);
+        //ST7789_WriteString(0, 0, buff, Font_11x18, GREEN, BLACK);
+
+        jRes = jd_decomp(&jdec, out_func, 0); /* Start to decompress with 1/1 scaling */
+        if (jRes == JDR_OK) {
+          /* Decompression succeeded */
+          //ST7789_WriteString(10, 20, "Decompressed!", Font_11x18, GREEN, BLACK);
+        } else {
+          sprintf(buff, "Decompression failed %d", jRes);
+          ST7789_WriteString(10, 40, buff, Font_11x18, RED, BLACK);
+        }
+
+      } else {
+        sprintf(buff, "jd_prepare %d", jRes);
+        ST7789_WriteString(10, 40, buff, Font_11x18, RED, BLACK);
+      }
+
+      f_close(devid.fp); /* Close the JPEG file */
+
+      HAL_Delay(2000);
+    }
+
 
 		// printar um ok na tela, usar o display como debug do cartão sd!
 		// Enter the HID Bootloader

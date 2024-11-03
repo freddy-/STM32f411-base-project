@@ -227,6 +227,7 @@ extern SPI_HandleTypeDef ST7789_SPI_PORT;
 
 /* Basic functions. */
 void ST7789_Init(void);
+void ST7789_WriteCommand(uint8_t cmd);
 void ST7789_SetRotation(uint8_t m);
 void ST7789_Fill_Color(uint16_t color);
 void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color);
